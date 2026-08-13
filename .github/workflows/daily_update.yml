@@ -1,0 +1,33 @@
+name: Daily Indicators Auto Update
+
+on:
+  schedule:
+    # 한국시간 매일 평일(월~금) 오후 16:30 자동 실행 (UTC 07:30)
+    - cron: '30 7 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install pandas yfinance finance-datareader plotly streamlit
+
+      - name: Run script
+        run: python collect_data.py
+
+      - name: Commit and push if changed
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add indicators_history.csv
+          git commit -m "Auto update daily indicators" || exit 0
+          git push
