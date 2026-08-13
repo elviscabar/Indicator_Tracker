@@ -14,6 +14,8 @@ if not os.path.exists(csv_file):
     st.warning("아직 수집된 데이터가 없습니다. GitHub Actions 실행을 기다려주세요.")
 else:
     df = pd.read_csv(csv_file)
+    # 날짜 컬럼을 문자열 타입으로 보장
+    df['Date'] = df['Date'].astype(str)
     latest = df.iloc[-1]
     
     # 상단 핵심 메트릭 카드 4종
@@ -28,9 +30,11 @@ else:
     # 차트 섹션 1: KOSPI / KOSDAQ 추이
     st.subheader("📊 지수 추이 (KOSPI & KOSDAQ)")
     fig_idx = px.line(df, x='Date', y=['KOSPI', 'KOSDAQ'], markers=True)
+    fig_idx.update_xaxes(type='category') # X축 포맷 고정
     st.plotly_chart(fig_idx, use_container_width=True)
     
     # 차트 섹션 2: 삼성전자 / SK하이닉스 주가 추이
     st.subheader("🏢 대표 주도주 주가 추이 (삼성전자 & SK하이닉스)")
     fig_stock = px.line(df, x='Date', y=['Samsung', 'Hynix'], markers=True)
+    fig_stock.update_xaxes(type='category') # X축 포맷 고정
     st.plotly_chart(fig_stock, use_container_width=True)
