@@ -3,10 +3,49 @@ import pandas as pd
 import plotly.express as px
 import os
 
-st.set_page_config(page_title="지표추적자 대시보드", layout="wide")
+st.set_page_config(page_title="지표추적자 무빙 대시보드", layout="wide")
 
-st.title("📈 알상무 스타일 매일 지표 추적 대시보드")
-st.caption("자동 업데이트되는 매크로 / 지수 / 대표 종목 가격 지표")
+# CSS 스타일링 (카드 디자인 및 폰트)
+st.markdown("""
+<style>
+    .indicator-card {
+        background-color: #1E222D;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+        border-left: 6px solid #4B5563;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .card-title {
+        font-size: 16px;
+        color: #9CA3AF;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    .card-movement {
+        font-size: 22px;
+        font-weight: 700;
+        color: #F9FAFB;
+        margin-bottom: 6px;
+    }
+    .up {
+        color: #EF4444 !important; /* 상승: 빨강 */
+    }
+    .down {
+        color: #3B82F6 !important; /* 하락: 파랑 */
+    }
+    .flat {
+        color: #9CA3AF !important;
+    }
+    .card-sub {
+        font-size: 13px;
+        color: #6B7280;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("📊 알상무 스타일 일일 지표 무빙 대시보드")
+st.caption("어제 지표 ➔ 오늘 지표 (당일 변동폭 & 장중 무빙 추적)")
 
 csv_file = 'indicators_history.csv'
 
@@ -14,27 +53,80 @@ if not os.path.exists(csv_file):
     st.warning("아직 수집된 데이터가 없습니다. GitHub Actions 실행을 기다려주세요.")
 else:
     df = pd.read_csv(csv_file)
-    # 날짜 컬럼을 문자열 타입으로 보장
-    df['Date'] = df['Date'].astype(str)
-    latest = df.iloc[-1]
     
-    # 상단 핵심 메트릭 카드 4종
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("원/달러 환율", f"{latest['USD_KRW']:,} 원")
-    col2.metric("미국채 10년 금리", f"{latest['US_10Y']}%")
-    col3.metric("WTI 유가", f"${latest['WTI']}")
-    col4.metric("KOSPI 지수", f"{latest['KOSPI']:,} pt")
+    # 지표 표시 이름 & 단위 매핑
+    info_map = {
+        'USD_KRW': {'title': '💵 원/달러 환율', 'unit': '원'},
+        'US_10Y': {'title': '🇺🇸 미국채 10년물 금리', 'unit': '%'},
+        'WTI': {'title': '🛢️ WTI 원유 선물', 'unit': '$'},
+        'KOSPI': {'title': '🇰🇷 KOSPI 지수', 'unit': 'pt'},
+        'KOSDAQ': {'title': '🇰🇷 KOSDAQ 지수', 'unit': 'pt'},
+        'Samsung': {'title': '🏢 삼성전자', 'unit': '원'},
+        'Hynix': {'title': '💾 SK하이닉스', 'unit': '원'}
+    }
     
+    st.subheader("🔥 6대 핵심 지표 당일 무빙 (전일 ➔ 금일)")
+    
+    # 2개 열(Columns)로 카드 배치
+    col1, col2 = st.columns(2)
+    
+    for i, row in df.iterrows():
+        ind = row['Indicator']
+        if ind not in info_map:
+            continue
+            
+        title = info_map[ind]['title']
+        unit = info_map[ind]['unit']
+        prev = f"{row['Prev_Close']:,}"
+        curr = f"{row['Close']:,}"
+        chg = row['Change']
+        pct = row['Pct_Change']
+        
+        # 상승/하락 클래스 및 기호
+        if chg > 0:
+            color_class = "up"
+            sign = "▲ +"
+        elif chg < 0:
+            color_class = "down"
+            sign = "▼ "
+        else:
+            color_class = "flat"
+            sign = "- "
+            
+        card_html = f"""
+        <div class="indicator-card">
+            <div class="card-title">{title}</div>
+            <div class="card-movement">
+                {prev} {unit} &nbsp;➔&nbsp; <span class="{color_class}">{curr} {unit}</span>
+                <span class="{color_class}" style="font-size: 17px; margin-left: 10px;">
+                    ({sign}{abs(chg):,} {unit}, {sign}{abs(pct):.2f}%)
+                </span>
+            </div>
+            <div class="card-sub">
+                당일 장중 범위: 저가 {row['Low']:,} ~ 고가 {row['High']:,} {unit} (시가: {row['Open']:,})
+            </div>
+        </div>
+        """
+        
+        if i % 2 == 0:
+            col1.markdown(card_html, unsafe_allow_html=True)
+        else:
+            col2.markdown(card_html, unsafe_allow_html=True)
+            
     st.divider()
     
-    # 차트 섹션 1: KOSPI / KOSDAQ 추이
-    st.subheader("📊 지수 추이 (KOSPI & KOSDAQ)")
-    fig_idx = px.line(df, x='Date', y=['KOSPI', 'KOSDAQ'], markers=True)
-    fig_idx.update_xaxes(type='category') # X축 포맷 고정
-    st.plotly_chart(fig_idx, use_container_width=True)
-    
-    # 차트 섹션 2: 삼성전자 / SK하이닉스 주가 추이
-    st.subheader("🏢 대표 주도주 주가 추이 (삼성전자 & SK하이닉스)")
-    fig_stock = px.line(df, x='Date', y=['Samsung', 'Hynix'], markers=True)
-    fig_stock.update_xaxes(type='category') # X축 포맷 고정
-    st.plotly_chart(fig_stock, use_container_width=True)
+    # 당일 등락률(%) 한눈에 비교 바 차트
+    st.subheader("📈 당일 등락률(%) 한눈에 비교")
+    df['Name'] = df['Indicator'].map(lambda x: info_map.get(x, {}).get('title', x))
+    fig_bar = px.bar(
+        df,
+        x='Name',
+        y='Pct_Change',
+        text='Pct_Change',
+        color='Pct_Change',
+        color_continuous_scale=['#3B82F6', '#9CA3AF', '#EF4444'],
+        labels={'Pct_Change': '등락률 (%)', 'Name': '지표명'},
+        title="지표별 전일 대비 등락률 (%)"
+    )
+    fig_bar.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    st.plotly_chart(fig_bar, use_container_width=True)
